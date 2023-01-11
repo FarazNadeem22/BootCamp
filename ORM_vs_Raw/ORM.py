@@ -1,71 +1,60 @@
-import psycopg2
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.orm import sessionmaker, declarative_base
 
-# Connect to your POSTGRES DB
-conn = psycopg2.connect(
-    """
-    dbname=week3 user=postgres host=localhost port=5432
-    """
-)
+# Connect to Postgres database
+engine = create_engine('postgresql://postgres@localhost:5432/week3')
+Session = sessionmaker(bind=engine)
+Base = declarative_base()
 
-# Set autocommit to true 
-conn.set_session(autocommit=True)
 
-# Open a cursor to perform database operations
-cur = conn.cursor()
 
-cur.execute(
-    """
-    DROP TABLE IF EXISTS veggies
-    """
-)
+class Veggie(Base):
+    __tablename__ = "veggies"
 
-cur.execute(
-    """
-    CREATE TABLE veggies(
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        color TEXT NOT NULL
-    )
-    """
-)
+    # set autoincrement to use the SERIAL data type
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    color = Column(String, nullable=False)
+    name = Column(String, nullable=False)
 
-cur.execute(
-    """
-    INSERT INTO veggies VALUES 
-    (1, 'carrot', 'orange'),
-    (2, 'onion', 'yellow'),
-    (3, 'zucchini', 'green'),
-    (4, 'squash', 'yellow'),
-    (5, 'pepper', 'red'),
-    (6, 'onion', 'red')
-    """
-)
+    def formatted_name(self):
+        return self.color.capitalize() + " " + self.name.capitalize()
 
-# Execute a query
-cur.execute(
-    """
-    SELECT * FROM veggies
-    """
-)
+# Recreate all tables each time script is run
+Base.metadata.drop_all(engine)
+Base.metadata.create_all(engine)
 
-# Retrieve query results
-records = cur.fetchall()
+seed_data = [
+    {'name': 'carrot', 'color': 'orange'},
+    {'name': 'onion', 'color': 'yellow'},
+    {'name': 'zucchini', 'color': 'green'},
+    {'name': 'squash', 'color': 'yellow'},
+    {'name': 'pepper', 'color': 'red'},
+    {'name': 'onion', 'color': 'red'}
+]
 
-# print(records)
+# Turn the seed data into a list of Veggie objects
+veggie_objects = []
+for item in seed_data:
+    v = Veggie(name=item["name"], color=item["color"])
+    veggie_objects.append(v)
 
-cur.execute(
-    """
-    SELECT color, name FROM veggies
-    ORDER BY name, color
-    """
-)
+# Create a session, insert new records, and commit the session
+session = Session()
+session.bulk_save_objects(veggie_objects)
+session.commit()
 
-veggie_records = cur.fetchall()
-for i, v in enumerate(veggie_records):
-    print(str(i+1) + ".", v[0].capitalize(), v[1].capitalize())
+# Create a new session for performing queries
+session = Session()
 
-# for row in veggie_records:
-#     #print(row)
-#     for col in row:
-#         print(col, end=" ")
-#     print(" ")
+# Run a SELECT * query on the veggies table
+veggies = session.query(Veggie).all()
+
+for v in veggies:
+    print(v.color, v.name)
+
+# SELECT * FROM veggies ORDER BY name, color
+veggies = session.query(Veggie).order_by(
+    Veggie.name, Veggie.color).all()
+
+for i, v in enumerate(veggies):
+    print(str(i+1) + ". " + v.formatted_name())
